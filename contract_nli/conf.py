@@ -28,7 +28,7 @@ def load_conf(path):
         raise ValueError(
             "task must be either 'classification' or 'identification_classification'")
 
-    if conf['task'] == 'identification_classification' and conf['doc_stride'] >= conf['max_seq_length'] - conf['max_query_length']:
+    if conf['task'] == 'identification_classification' and conf['doc_stride'] >= conf['max_seq_length'] - conf['pre_seq_len'] - conf['max_query_length']:
         raise RuntimeError(
             "WARNING - You've set a doc stride which may be superior to the document length in some "
             "examples. This could result in errors when building features from the examples. Please reduce the doc "

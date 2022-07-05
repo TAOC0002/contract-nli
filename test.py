@@ -98,11 +98,12 @@ def main(dev_dataset_path, model_dir, dataset_path, output_prefix):
             max_query_length=conf['max_query_length'],
             dataset_type=conf['task'],
             symbol_based_hypothesis=conf['symbol_based_hypothesis'],
+            pre_seq_len=conf['pre_seq_len'],
             threads=None,
             local_rank=-1,
             overwrite_cache=True,
             labels_available=True,
-            cache_dir='.'
+            cache_dir='.',
         )
         all_results = predict(
             model, dataset, examples, features,
@@ -130,6 +131,7 @@ def main(dev_dataset_path, model_dir, dataset_path, output_prefix):
         max_query_length=conf['max_query_length'],
         dataset_type=conf['task'],
         symbol_based_hypothesis=conf['symbol_based_hypothesis'],
+        pre_seq_len=conf['pre_seq_len'],
         threads=None,
         local_rank=-1,
         overwrite_cache=True,

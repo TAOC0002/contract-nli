@@ -49,7 +49,7 @@ logger = logging.getLogger(__name__)
     help='This is automatically set by torch.distributed.launch.')
 @click.option('--shared-filesystem', type=int, default=-1)
 def main(conf, output_dir, local_rank, shared_filesystem):
-    conf: dict = load_conf(conf)
+    conf = load_conf(conf)
 
     # Setup CUDA, GPU & distributed training
     if local_rank == -1 or conf['no_cuda']:
@@ -104,7 +104,9 @@ def main(conf, output_dir, local_rank, shared_filesystem):
         if conf['task'] == 'identification_classification':
             config = update_config(
                 config, impossible_strategy='ignore',
-                class_loss_weight=conf['class_loss_weight'])
+                class_loss_weight=conf['class_loss_weight'],
+                pre_seq_len=conf['pre_seq_len']
+            )
             model = MODEL_TYPE_TO_CLASS[config.model_type].from_pretrained(
                 conf['model_name_or_path'],
                 from_tf=bool(".ckpt" in conf['model_name_or_path']),
@@ -118,9 +120,11 @@ def main(conf, output_dir, local_rank, shared_filesystem):
                 config=config,
                 cache_dir=conf['cache_dir']
             )
-
-    logger.info("Training/evaluation parameters %s",
-                {k: v for k, v in conf.items() if k != 'raw_yaml'})
+    params_info = {}
+    for k, v in conf.items():
+        if k != 'raw_yaml':
+            params_info[k] = v
+    logger.info("Training/evaluation parameters %s",params_info)
 
     # Before we do anything with models, we want to ensure that we get fp16 execution of torch.einsum if conf['fp16'] is set.
     # Otherwise it'll default to "promote" mode, and we'll get fp32 operations. Note that running `--fp16_opt_level="O2"` will
@@ -137,7 +141,7 @@ def main(conf, output_dir, local_rank, shared_filesystem):
             conf['train_file'],
             local_rank=local_rank,
             overwrite_cache=conf['overwrite_cache'],
-            cache_dir='.',
+            cache_dir='.'
         )
         if conf['task'] == 'identification_classification':
             n_added_token = tokenizer.add_special_tokens(
@@ -181,6 +185,7 @@ def main(conf, output_dir, local_rank, shared_filesystem):
             max_query_length=conf['max_query_length'],
             dataset_type=conf['task'],
             symbol_based_hypothesis=conf['symbol_based_hypothesis'],
+            pre_seq_len=conf['pre_seq_len'],
             threads=None,
             local_rank=local_rank,
             overwrite_cache=conf['overwrite_cache'],
@@ -205,6 +210,7 @@ def main(conf, output_dir, local_rank, shared_filesystem):
                 max_query_length=conf['max_query_length'],
                 dataset_type=conf['task'],
                 symbol_based_hypothesis=conf['symbol_based_hypothesis'],
+                pre_seq_len=conf['pre_seq_len'],
                 threads=None,
                 local_rank=local_rank,
                 overwrite_cache=conf['overwrite_cache'],
@@ -218,6 +224,9 @@ def main(conf, output_dir, local_rank, shared_filesystem):
     optimizer = setup_optimizer(
         model, learning_rate=conf['learning_rate'], epsilon=conf['adam_epsilon'],
         weight_decay=conf['weight_decay'])
+    print('\n\n\n\n\n\n')
+    print(train_dataset[0][0].shape)
+    print('\n\n\n\n\n\n')
     trainer = Trainer(
         model=model,
         train_dataset=train_dataset,

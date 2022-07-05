@@ -257,6 +257,7 @@ class Trainer(object):
             self.model.train()
         else:
             self.model.eval()
+
         inputs = self.converter(batch, self.model, self.device)
         outputs = self.model(**inputs)
 

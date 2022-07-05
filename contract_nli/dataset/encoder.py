@@ -173,7 +173,8 @@ def convert_example_to_features(
         max_query_length: int,
         padding_strategy,
         labels_available: bool,
-        symbol_based_hypothesis: bool
+        symbol_based_hypothesis: bool,
+        pre_seq_len: int
         ) -> List[IdentificationClassificationFeatures]:
     features = []
 
@@ -195,7 +196,7 @@ def convert_example_to_features(
     )
     sequence_pair_added_tokens = tokenizer.model_max_length - tokenizer.max_len_sentences_pair
     query_with_special_tokens_length = len(truncated_query) + sequence_added_tokens
-    max_context_length = max_seq_length - sequence_pair_added_tokens - len(truncated_query)
+    max_context_length = max_seq_length - pre_seq_len - sequence_pair_added_tokens - len(truncated_query)
 
     spans = []
     start = 0
@@ -241,11 +242,11 @@ def convert_example_to_features(
             pairs,
             truncation=False,
             padding=padding_strategy,
-            max_length=max_seq_length,
+            max_length=max_seq_length - pre_seq_len,
             return_overflowing_tokens=False,
             return_token_type_ids=True
         )
-        assert len(encoded_dict['input_ids']) <= max_seq_length
+        assert len(encoded_dict['input_ids']) <= max_seq_length - pre_seq_len
 
         paragraph_len = len(split_tokens)
         if tokenizer.pad_token_id in encoded_dict["input_ids"]:
@@ -370,6 +371,7 @@ def convert_examples_to_features(
     doc_stride,
     max_query_length,
     labels_available,
+    pre_seq_len,
     symbol_based_hypothesis: bool,
     padding_strategy="max_length",
     threads=None,
@@ -401,7 +403,8 @@ def convert_examples_to_features(
             max_query_length=max_query_length,
             padding_strategy=padding_strategy,
             labels_available=labels_available,
-            symbol_based_hypothesis=symbol_based_hypothesis
+            symbol_based_hypothesis=symbol_based_hypothesis,
+            pre_seq_len=pre_seq_len
         )
         features: List[List[IdentificationClassificationFeatures]] = list(
             tqdm(

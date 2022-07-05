@@ -81,7 +81,8 @@ def convert_example_to_features(
         max_seq_length: int,
         max_query_length: int,
         padding_strategy,
-        symbol_based_hypothesis: bool
+        symbol_based_hypothesis: bool,
+        pre_seq_len: int
         ) -> ClassificationFeatures:
     all_doc_tokens, orig_to_tok_index, tok_to_orig_index, span_to_orig_index = tokenize(
        tokenizer, example.tokens, example.splits)
@@ -117,11 +118,11 @@ def convert_example_to_features(
         pairs,
         truncation=truncation,
         padding=padding_strategy,
-        max_length=max_seq_length,
+        max_length=max_seq_length - pre_seq_len,
         return_overflowing_tokens=False,
         return_token_type_ids=True
     )
-    assert len(encoded_dict['input_ids']) <= max_seq_length
+    assert len(encoded_dict['input_ids']) <= max_seq_length - pre_seq_len
 
     if tokenizer.pad_token_id in encoded_dict["input_ids"]:
         if tokenizer.padding_side == "right":
@@ -166,10 +167,11 @@ def convert_examples_to_features(
     tokenizer,
     max_seq_length,
     max_query_length,
+    pre_seq_len,
     symbol_based_hypothesis: bool,
     padding_strategy="max_length",
     threads=None,
-    tqdm_enabled=True,
+    tqdm_enabled=True
 ):
     """
     Converts a list of examples into a list of features that can be directly
@@ -199,7 +201,8 @@ def convert_examples_to_features(
             max_seq_length=max_seq_length,
             max_query_length=max_query_length,
             padding_strategy=padding_strategy,
-            symbol_based_hypothesis=symbol_based_hypothesis
+            symbol_based_hypothesis=symbol_based_hypothesis,
+            pre_seq_len=pre_seq_len,
         )
         features: List[ClassificationFeatures] = list(
             tqdm(
