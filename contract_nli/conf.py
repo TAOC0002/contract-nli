@@ -17,7 +17,12 @@ import os
 import yaml
 
 
-def load_conf(path):
+def load_conf(path: object) -> object:
+    """
+
+    Returns:
+        object: 
+    """
     with open(path) as fin:
         conf_txt = fin.read()
     conf = yaml.load(conf_txt)

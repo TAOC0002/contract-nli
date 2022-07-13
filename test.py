@@ -38,7 +38,10 @@ logger = logging.getLogger(__name__)
 @click.argument('model-dir', type=click.Path(exists=True))
 @click.argument('dataset-path', type=click.Path(exists=True))
 @click.argument('output-prefix', type=str)
-def main(dev_dataset_path, model_dir, dataset_path, output_prefix):
+@click.option(
+    '--template', type=int, default=1,
+    help='P-tuning template, default to 1')
+def main(dev_dataset_path, model_dir, dataset_path, output_prefix, template):
     conf: dict = load_conf(os.path.join(model_dir, 'conf.yml'))
 
     device = torch.device("cuda" if torch.cuda.is_available() and not conf['no_cuda'] else "cpu")
@@ -99,6 +102,7 @@ def main(dev_dataset_path, model_dir, dataset_path, output_prefix):
             dataset_type=conf['task'],
             symbol_based_hypothesis=conf['symbol_based_hypothesis'],
             pre_seq_len=conf['pre_seq_len'],
+            template=template,
             threads=None,
             local_rank=-1,
             overwrite_cache=True,
@@ -132,6 +136,7 @@ def main(dev_dataset_path, model_dir, dataset_path, output_prefix):
         dataset_type=conf['task'],
         symbol_based_hypothesis=conf['symbol_based_hypothesis'],
         pre_seq_len=conf['pre_seq_len'],
+        template=template,
         threads=None,
         local_rank=-1,
         overwrite_cache=True,

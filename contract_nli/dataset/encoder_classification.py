@@ -82,7 +82,8 @@ def convert_example_to_features(
         max_query_length: int,
         padding_strategy,
         symbol_based_hypothesis: bool,
-        pre_seq_len: int
+        pre_seq_len: int,
+        template: int
         ) -> ClassificationFeatures:
     all_doc_tokens, orig_to_tok_index, tok_to_orig_index, span_to_orig_index = tokenize(
        tokenizer, example.tokens, example.splits)
@@ -168,6 +169,7 @@ def convert_examples_to_features(
     max_seq_length,
     max_query_length,
     pre_seq_len,
+    template,
     symbol_based_hypothesis: bool,
     padding_strategy="max_length",
     threads=None,
@@ -203,6 +205,7 @@ def convert_examples_to_features(
             padding_strategy=padding_strategy,
             symbol_based_hypothesis=symbol_based_hypothesis,
             pre_seq_len=pre_seq_len,
+            template=template
         )
         features: List[ClassificationFeatures] = list(
             tqdm(

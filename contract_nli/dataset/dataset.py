@@ -69,7 +69,8 @@ def load_and_cache_features(
         max_seq_length: int, doc_stride: int, max_query_length: int,
         dataset_type: str, symbol_based_hypothesis: bool,
         threads: Optional[int] = 1, local_rank: int = 1,
-        overwrite_cache = False, labels_available=True, cache_dir: str = '.', pre_seq_len: int = 100
+        overwrite_cache = False, labels_available=True, cache_dir: str = '.',
+        pre_seq_len: int = 100, template: int = 1
         ) -> Tuple[TensorDataset, List[Union[IdentificationClassificationFeatures, ClassificationFeatures]]]:
     try:
         os.makedirs(cache_dir)
@@ -90,7 +91,7 @@ def load_and_cache_features(
             features_and_dataset["features"],
             features_and_dataset["dataset"]
         )
-        print('\n\n\n\n\n\n Used cached data \n\n\n\n\n\n\n')
+
     else:
         assert local_rank in [-1, 0]
         logger.info(f"Creating features from dataset file at {path}")
@@ -103,6 +104,7 @@ def load_and_cache_features(
                 max_query_length=max_query_length,
                 labels_available=labels_available,
                 pre_seq_len=pre_seq_len,
+                template=template,
                 symbol_based_hypothesis=symbol_based_hypothesis,
                 threads=threads
             )
@@ -113,6 +115,7 @@ def load_and_cache_features(
                 max_seq_length=max_seq_length,
                 max_query_length=max_query_length,
                 pre_seq_len=pre_seq_len,
+                template=template,
                 symbol_based_hypothesis=symbol_based_hypothesis,
                 threads=threads
             )

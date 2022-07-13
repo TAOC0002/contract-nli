@@ -174,7 +174,8 @@ def convert_example_to_features(
         padding_strategy,
         labels_available: bool,
         symbol_based_hypothesis: bool,
-        pre_seq_len: int
+        pre_seq_len: int,
+        template: int
         ) -> List[IdentificationClassificationFeatures]:
     features = []
 
@@ -357,12 +358,9 @@ def convert_example_to_features(
         )
     return features
 
-
-
 def convert_example_to_features_init(tokenizer_for_convert: PreTrainedTokenizerBase):
     global tokenizer
     tokenizer = tokenizer_for_convert
-
 
 def convert_examples_to_features(
     examples,
@@ -372,6 +370,7 @@ def convert_examples_to_features(
     max_query_length,
     labels_available,
     pre_seq_len,
+    template,
     symbol_based_hypothesis: bool,
     padding_strategy="max_length",
     threads=None,
@@ -404,7 +403,8 @@ def convert_examples_to_features(
             padding_strategy=padding_strategy,
             labels_available=labels_available,
             symbol_based_hypothesis=symbol_based_hypothesis,
-            pre_seq_len=pre_seq_len
+            pre_seq_len=pre_seq_len,
+            template=template
         )
         features: List[List[IdentificationClassificationFeatures]] = list(
             tqdm(

@@ -35,6 +35,7 @@ class BertForIdentificationClassification(BertPreTrainedModel):
         self.span_outputs = nn.Linear(config.hidden_size, 2)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
         self.model_type: str = config.model_type
+        self.template = config.template
 
         if config.impossible_strategy not in self.IMPOSSIBLE_STRATEGIES:
             raise ValueError(
@@ -99,18 +100,6 @@ class BertForIdentificationClassification(BertPreTrainedModel):
             return_dict=True,
             # past_key_values=past_key_values,
         )
-
-        # outputs = self.bert(
-        #     input_ids,
-        #     attention_mask=attention_mask,
-        #     token_type_ids=token_type_ids,
-        #     position_ids=position_ids,
-        #     head_mask=head_mask,
-        #     inputs_embeds=inputs_embeds,
-        #     output_attentions=False,
-        #     output_hidden_states=True,
-        #     return_dict=True,
-        # )
 
         sequence_output = outputs.last_hidden_state
 

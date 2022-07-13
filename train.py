@@ -19,7 +19,6 @@
 import json
 import logging
 import os
-
 import click
 import torch
 import transformers
@@ -37,6 +36,8 @@ from contract_nli.postprocess import format_json
 from contract_nli.predictor import predict, predict_classification
 from contract_nli.trainer import Trainer, setup_optimizer
 from contract_nli.utils import set_seed, distributed_barrier
+import wandb
+wandb.login()
 
 logger = logging.getLogger(__name__)
 
@@ -45,10 +46,13 @@ logger = logging.getLogger(__name__)
 @click.argument('conf', type=click.Path(exists=True))
 @click.argument('output-dir', type=click.Path(exists=False))
 @click.option(
+    '--template', type=int, default=1,
+    help='P-tuning template, default to 1')
+@click.option(
     '--local_rank', type=int, default=-1,
     help='This is automatically set by torch.distributed.launch.')
 @click.option('--shared-filesystem', type=int, default=-1)
-def main(conf, output_dir, local_rank, shared_filesystem):
+def main(conf, output_dir, template, local_rank, shared_filesystem):
     conf = load_conf(conf)
 
     # Setup CUDA, GPU & distributed training
@@ -105,7 +109,8 @@ def main(conf, output_dir, local_rank, shared_filesystem):
             config = update_config(
                 config, impossible_strategy='ignore',
                 class_loss_weight=conf['class_loss_weight'],
-                pre_seq_len=conf['pre_seq_len']
+                pre_seq_len=conf['pre_seq_len'],
+                template=template
             )
             model = MODEL_TYPE_TO_CLASS[config.model_type].from_pretrained(
                 conf['model_name_or_path'],
@@ -125,6 +130,13 @@ def main(conf, output_dir, local_rank, shared_filesystem):
         if k != 'raw_yaml':
             params_info[k] = v
     logger.info("Training/evaluation parameters %s",params_info)
+
+    wandb.init(
+        project='contract_nli',
+        name='p-tuning baseline',
+        config=conf
+    )
+    conf = wandb.config
 
     # Before we do anything with models, we want to ensure that we get fp16 execution of torch.einsum if conf['fp16'] is set.
     # Otherwise it'll default to "promote" mode, and we'll get fp32 operations. Note that running `--fp16_opt_level="O2"` will
@@ -186,6 +198,7 @@ def main(conf, output_dir, local_rank, shared_filesystem):
             dataset_type=conf['task'],
             symbol_based_hypothesis=conf['symbol_based_hypothesis'],
             pre_seq_len=conf['pre_seq_len'],
+            template=template,
             threads=None,
             local_rank=local_rank,
             overwrite_cache=conf['overwrite_cache'],
@@ -211,6 +224,7 @@ def main(conf, output_dir, local_rank, shared_filesystem):
                 dataset_type=conf['task'],
                 symbol_based_hypothesis=conf['symbol_based_hypothesis'],
                 pre_seq_len=conf['pre_seq_len'],
+                template=template,
                 threads=None,
                 local_rank=local_rank,
                 overwrite_cache=conf['overwrite_cache'],
@@ -224,9 +238,7 @@ def main(conf, output_dir, local_rank, shared_filesystem):
     optimizer = setup_optimizer(
         model, learning_rate=conf['learning_rate'], epsilon=conf['adam_epsilon'],
         weight_decay=conf['weight_decay'])
-    print('\n\n\n\n\n\n')
-    print(train_dataset[0][0].shape)
-    print('\n\n\n\n\n\n')
+
     trainer = Trainer(
         model=model,
         train_dataset=train_dataset,
@@ -299,6 +311,14 @@ def main(conf, output_dir, local_rank, shared_filesystem):
         logger.info(f"Results@: {json.dumps(metrics, indent=2)}")
         with open(os.path.join(output_dir, f'metrics.json'), 'w') as fout:
             json.dump(metrics, fout, indent=2)
+
+    x = torch.randn(conf['per_gpu_eval_batch_size'],
+                    conf['max_seq_length']-conf['pre_seq_len'],
+                    config.hidden_size,
+                    requires_grad=True)
+    torch.onnx.export(model, x, "model.onnx")
+    wandb.save("model.onnx")
+    wandb.finish()
 
 
 if __name__ == "__main__":
