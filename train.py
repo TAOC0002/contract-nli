@@ -133,7 +133,7 @@ def main(conf, output_dir, template, local_rank, shared_filesystem):
 
     wandb.init(
         project='contract_nli',
-        name='p-tuning baseline',
+        name='p-tuning_baseline_'+str(conf['pre_seq_len']),
         config=conf
     )
     conf = wandb.config
