@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 
 def load_and_cache_examples(
-        path: str, *, local_rank: int = 1, overwrite_cache = False,
+        path: str, *, local_rank: int = -1, overwrite_cache = False,
         cache_dir: str = '.') -> List[ContractNLIExample]:
     try:
         os.makedirs(cache_dir)
@@ -68,7 +68,7 @@ def load_and_cache_features(
         path: str, examples: List[ContractNLIExample], tokenizer, *,
         max_seq_length: int, doc_stride: int, max_query_length: int,
         dataset_type: str, symbol_based_hypothesis: bool,
-        threads: Optional[int] = 1, local_rank: int = 1,
+        threads: Optional[int] = 1, local_rank: int = -1,
         overwrite_cache = False, labels_available=True, cache_dir: str = '.',
         pre_seq_len: int = 100, template: int = 1
         ) -> Tuple[TensorDataset, List[Union[IdentificationClassificationFeatures, ClassificationFeatures]]]:

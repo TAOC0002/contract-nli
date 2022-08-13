@@ -97,3 +97,4 @@ output/
 sftp/
 wandb/
 contract_nli/model/identification_classification/bert2.py
+*.zip
