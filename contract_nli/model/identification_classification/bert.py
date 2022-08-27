@@ -14,7 +14,8 @@
 
 import torch
 from torch import nn
-from transformers.models.bert import BertPreTrainedModel, BertModel
+from transformers.models.bert import BertPreTrainedModel, BertModel, BertConfig
+from transformers.models.gpt2 import GPT2Model, GPT2Config
 from transformers.utils import logging
 
 from contract_nli.dataset.loader import NLILabel
@@ -31,6 +32,9 @@ class BertForIdentificationClassification(BertPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
         self.bert = BertModel(config, add_pooling_layer=True)
+        for param in self.bert.parameters():
+            param.requires_grad = False
+
         self.class_outputs = nn.Linear(config.hidden_size, 3)
         self.span_outputs = nn.Linear(config.hidden_size, 2)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
@@ -40,28 +44,73 @@ class BertForIdentificationClassification(BertPreTrainedModel):
         if config.impossible_strategy not in self.IMPOSSIBLE_STRATEGIES:
             raise ValueError(
                 f'impossible_strategy must be one of {self.IMPOSSIBLE_STRATEGIES}')
-
         self.impossible_strategy = config.impossible_strategy
+
         self.class_loss_weight = config.class_loss_weight
         self.init_weights()
 
         # ------------------------------------------
 
+        self.pre_seq_len = config.pre_seq_len
+        self.max_query_length = config.max_query_length
         self.embeddings = self.bert.embeddings
 
-        for param in self.bert.parameters():
+        self.context_encoder_config = BertConfig.from_pretrained('bert-base-uncased')
+        self.context_encoder = BertModel(self.context_encoder_config)
+        for param in self.context_encoder.parameters():
             param.requires_grad = False
 
-        self.pre_seq_len = config.pre_seq_len
-        self.prefix_tokens = torch.arange(self.pre_seq_len).long()
-        self.prefix_encoder = torch.nn.Embedding(self.pre_seq_len, config.hidden_size)
+        self.prompt_encoder_config = BertConfig.from_pretrained('bert-base-uncased')
+        self.prompt_encoder = BertModel(self.prompt_encoder_config)
 
-        # ------------------------------------------
+        self.mid_dim = config.mid_dim if hasattr(config, 'mid_dim') else 512
+        self.control_trans = torch.nn.Sequential(
+            torch.nn.Linear(self.context_encoder_config.hidden_size, self.mid_dim),
+            torch.nn.Tanh(),
+            torch.nn.Linear(self.mid_dim, self.prompt_encoder_config.n_layer * 2 *
+                            self.prompt_encoder_config.n_embd *
+                            self.prompt_encoder_config.n_head)
+        )
 
-    def get_prompt(self, batch_size):
-        prefix_tokens = self.prefix_tokens.unsqueeze(0).expand(batch_size, -1).to(self.bert.device)
-        prompts = self.prefix_encoder(prefix_tokens)
+        self.transform = 1  # MLP
+        self.prompt_embed = torch.nn.Embedding()
+
+    def get_context(self, input_ids, position_ids, attention_mask):
+        # get hypothesis statements as contexts
+        query_ids = input_ids[:, self.max_query_length]
+        if position_ids is not None:
+            position_ids = position_ids[:, self.max_query_length]
+        attention_mask = attention_mask[:, self.max_query_length]
+
+        # get context embeddings and convert them to past key values
+        self.context_encoder.eval()
+        with torch.no_grad():
+            context = self.context_encoder(
+                input_ids=query_ids,
+                position_ids=position_ids,
+                attention_mask=attention_mask,
+            ).last_hidden_state  # (bs, seq_len, hidden_size)
+        past_key_values = self.control_trans(context)
+
+        # adjust past key values dimensions to fit into the prompt encoder
+        bsz, seqlen, _ = past_key_values.shape
+        config = self.prompt_encoder_config
+        past_key_values = past_key_values.view(bsz, seqlen, config.n_layer * 2, config.n_head,
+                                               config.n_embd)
+        past_key_values = past_key_values.permute([2, 0, 3, 1, 4]).split(2)
+        # past_key_values is of shape (12, 2, 8, 12, 256, 768) -> (n_layers, 2, bsz, n_head, seqlen, hidden_size)
+
+        return past_key_values
+
+    def get_prompt(self, past_key_values, batch_size):
+        prompt_tokens = torch.arange(1, self.pre_seq_len+1).long()
+        prompt_tokens = prompt_tokens.unsqueeze(0).expand(batch_size, -1).to(self.bert.device)
+        prompts = self.prompt_encoder(input_ids=prompt_tokens, past_key_values=past_key_values)
+        prompts = self.transform(prompts) # pre_seq_len
+        prompts = self.prompt_embed(prompts)
         return prompts
+
+    # ------------------------------------------
 
     def forward(
         self,
@@ -70,7 +119,6 @@ class BertForIdentificationClassification(BertPreTrainedModel):
         token_type_ids=None,
         position_ids=None,
         head_mask=None,
-        inputs_embeds=None,
         class_labels=None,
         span_labels=None,
         p_mask=None,
@@ -80,25 +128,24 @@ class BertForIdentificationClassification(BertPreTrainedModel):
         # ------------------------------------------
 
         batch_size = input_ids.shape[0]
+        input_ids = torch.tensor(input_ids).to(self.bert.device).long()
         raw_embedding = self.embeddings(
             input_ids=input_ids,
             position_ids=position_ids,
             token_type_ids=token_type_ids,
         )
-        prompts = self.get_prompt(batch_size=batch_size)
+
+        context_as_past_key_values = self.get_context(input_ids, position_ids, attention_mask)
+        prompts = self.get_prompt(context_as_past_key_values, batch_size)
         inputs_embeds = torch.cat((prompts, raw_embedding), dim=1)
-        prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len).to(self.bert.device)
-        attention_mask = torch.cat((prefix_attention_mask, attention_mask), dim=1)
+        prompt_attention_mask = torch.ones(batch_size, self.pre_seq_len).to(self.bert.device)
+        attention_mask = torch.cat((prompt_attention_mask, attention_mask), dim=1)
 
         outputs = self.bert(
-            # input_ids,
             attention_mask=attention_mask,
-            # token_type_ids=token_type_ids,
-            # position_ids=position_ids,
             head_mask=head_mask,
             inputs_embeds=inputs_embeds,
             return_dict=True,
-            # past_key_values=past_key_values,
         )
 
         sequence_output = outputs.last_hidden_state
