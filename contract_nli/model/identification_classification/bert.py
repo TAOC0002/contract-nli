@@ -80,6 +80,7 @@ class BertForIdentificationClassification(BertPreTrainedModel):
         # ------------------------------------------
 
         batch_size = input_ids.shape[0]
+        input_ids = torch.tensor(input_ids).to(self.bert.device).long()
         raw_embedding = self.embeddings(
             input_ids=input_ids,
             position_ids=position_ids,
