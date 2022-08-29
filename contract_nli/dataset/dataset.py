@@ -70,7 +70,7 @@ def load_and_cache_features(
         dataset_type: str, symbol_based_hypothesis: bool,
         threads: Optional[int] = 1, local_rank: int = -1,
         overwrite_cache = False, labels_available=True, cache_dir: str = '.',
-        pre_seq_len: int = 100, template: int = 1
+        pre_seq_len: int = 0, template: int = 1
         ) -> Tuple[TensorDataset, List[Union[IdentificationClassificationFeatures, ClassificationFeatures]]]:
     try:
         os.makedirs(cache_dir)
