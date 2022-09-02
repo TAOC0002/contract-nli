@@ -314,7 +314,6 @@ def main(conf, output_dir, template, local_rank, shared_filesystem):
 
     x = torch.randn(conf['per_gpu_eval_batch_size'],
                     conf['max_seq_length']-conf['pre_seq_len'],
-                    config.hidden_size,
                     requires_grad=True)
     torch.onnx.export(model, x, "model.onnx")
     wandb.save("model.onnx")
