@@ -49,8 +49,8 @@ class BertForIdentificationClassification(BertPreTrainedModel):
 
         self.embeddings = self.bert.embeddings
 
-        for param in self.bert.parameters():
-            param.requires_grad = False
+        # for param in self.bert.parameters():
+        #     param.requires_grad = False
 
         self.pre_seq_len = config.pre_seq_len
         self.prefix_tokens = torch.arange(self.pre_seq_len).long()
