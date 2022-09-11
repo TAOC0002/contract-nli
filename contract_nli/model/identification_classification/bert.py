@@ -68,7 +68,7 @@ class BertForIdentificationClassification(BertPreTrainedModel):
         self.control_trans = torch.nn.Sequential(
             torch.nn.Linear(self.context_encoder_config.hidden_size, self.mid_dim),
             torch.nn.Tanh(),
-            torch.nn.Linear(self.mid_dim, self.prompt_encoder_config.n_layer * 2 *
+            torch.nn.Linear(self.mid_dim, self.prompt_encoder_config.num_hidden_layers * 2 *
                             self.prompt_encoder_config.n_embd *
                             self.prompt_encoder_config.n_head)
         )
