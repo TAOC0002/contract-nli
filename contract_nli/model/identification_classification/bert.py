@@ -61,6 +61,7 @@ class BertForIdentificationClassification(BertPreTrainedModel):
             param.requires_grad = False
 
         self.prompt_encoder_config = BertConfig.from_pretrained('bert-base-uncased')
+        self.prompt_encoder_config.num_hidden_layers = 2
         self.prompt_encoder = BertModel(self.prompt_encoder_config)
 
         self.mid_dim = config.mid_dim if hasattr(config, 'mid_dim') else 512
@@ -72,8 +73,9 @@ class BertForIdentificationClassification(BertPreTrainedModel):
                             self.prompt_encoder_config.n_head)
         )
 
-        self.transform = 1  # MLP
-        self.prompt_embed = torch.nn.Embedding()
+        self.prompt_tokens = torch.arange(1, self.pre_seq_len + 1).long()
+        self.transform = torch.nn.Linear(config.hidden_size, 1)
+        self.prompt_embed = torch.nn.Embedding(self.pre_seq_len, config.hidden_size) # size = (?,?)
 
     def get_context(self, input_ids, position_ids, attention_mask):
         # get hypothesis statements as contexts
@@ -103,10 +105,15 @@ class BertForIdentificationClassification(BertPreTrainedModel):
         return past_key_values
 
     def get_prompt(self, past_key_values, batch_size):
-        prompt_tokens = torch.arange(1, self.pre_seq_len+1).long()
-        prompt_tokens = prompt_tokens.unsqueeze(0).expand(batch_size, -1).to(self.bert.device)
+        prompt_tokens = self.prompt_tokens.unsqueeze(0).expand(batch_size, -1).to(self.bert.device)
         prompts = self.prompt_encoder(input_ids=prompt_tokens, past_key_values=past_key_values)
-        prompts = self.transform(prompts) # pre_seq_len
+        # output size = (bsz, seqlen, hidden_size)
+        prompts = self.transform(prompts)  # size has to become (bsz, seqlen, 1)
+        prompt_min = torch.min(prompts)
+        prompt_max = torch.max(prompts)
+        prompts = (prompts+prompt_min) / (prompt_max-prompt_min) * self.pre_seq_len
+        # have to be in the range 0~pre_seq_len
+        prompts = prompts.to(torch.long)
         prompts = self.prompt_embed(prompts)
         return prompts
 
