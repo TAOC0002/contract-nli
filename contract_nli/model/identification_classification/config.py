@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-def update_config(config, *, impossible_strategy, class_loss_weight, pre_seq_len, max_query_len, template):
+def update_config(config, *, impossible_strategy, class_loss_weight, pre_seq_len, max_query_length, template):
     class IdentificationClassificationConfig(type(config)):
         def __init__(self, impossible_strategy='ignore',
                      class_loss_weight=1.0, pre_seq_len=100, template=1, **kwargs):
@@ -24,7 +24,7 @@ def update_config(config, *, impossible_strategy, class_loss_weight, pre_seq_len
 
         @classmethod
         def from_config(cls, config, *, impossible_strategy,
-                        class_loss_weight, pre_seq_len, max_query_len, template):
+                        class_loss_weight, pre_seq_len, max_query_length, template):
             kwargs = config.to_dict()
             assert 'impossible_strategy' not in kwargs
             kwargs['impossible_strategy'] = impossible_strategy
@@ -32,8 +32,8 @@ def update_config(config, *, impossible_strategy, class_loss_weight, pre_seq_len
             kwargs['class_loss_weight'] = class_loss_weight
             assert 'pre_seq_len' not in kwargs
             kwargs['pre_seq_len'] = pre_seq_len
-            assert 'max_query_len' not in kwargs
-            kwargs['max_query_len'] = max_query_len
+            assert 'max_query_length' not in kwargs
+            kwargs['max_query_length'] = max_query_length
             assert 'template' not in kwargs
             kwargs['template'] = template
 
@@ -42,4 +42,4 @@ def update_config(config, *, impossible_strategy, class_loss_weight, pre_seq_len
     return IdentificationClassificationConfig.from_config(
         config, impossible_strategy=impossible_strategy,
         class_loss_weight=class_loss_weight, pre_seq_len=pre_seq_len,
-        max_query_len=max_query_len, template=template)
+        max_query_length=max_query_length, template=template)
