@@ -49,8 +49,8 @@ class BertForIdentificationClassification(BertPreTrainedModel):
 
         self.embeddings = self.bert.embeddings
 
-        for param in self.bert.parameters():
-            param.requires_grad = False
+        # for param in self.bert.parameters():
+        #     param.requires_grad = False
 
         self.pre_seq_len = config.pre_seq_len
         self.prefix_tokens = torch.arange(self.pre_seq_len).long()
@@ -81,7 +81,7 @@ class BertForIdentificationClassification(BertPreTrainedModel):
 
         batch_size = input_ids.shape[0]
         raw_embedding = self.embeddings(
-            input_ids=input_ids,
+            input_ids=input_ids.to(self.bert.device).long(),
             position_ids=position_ids,
             token_type_ids=token_type_ids,
         )
