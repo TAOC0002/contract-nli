@@ -110,6 +110,7 @@ def main(conf, output_dir, template, local_rank, shared_filesystem):
                 config, impossible_strategy='ignore',
                 class_loss_weight=conf['class_loss_weight'],
                 pre_seq_len=conf['pre_seq_len'],
+                max_query_len=conf['max_query_len'],
                 template=template
             )
             model = MODEL_TYPE_TO_CLASS[config.model_type].from_pretrained(
