@@ -191,6 +191,7 @@ class Trainer(object):
             if self.local_rank != -1:
                 self.train_dataloader.sampler.set_epoch(self.current_epoch)
             pbar.set_description(desc=f"Train (epoch {self.current_epoch + 1})")
+            torch.autograd.set_detect_anomaly(True)
             for batch in self.train_dataloader:
                 # Skip past any already trained steps if resuming training
                 if (step // self.gradient_accumulation_steps) < self.current_step:

@@ -68,52 +68,60 @@ class BertForIdentificationClassification(BertPreTrainedModel):
         self.control_trans = torch.nn.Sequential(
             torch.nn.Linear(self.context_encoder_config.hidden_size, self.mid_dim),
             torch.nn.Tanh(),
-            torch.nn.Linear(self.mid_dim, self.prompt_encoder_config.num_hidden_layers * 2 *
-                            self.prompt_encoder_config.n_embd *
-                            self.prompt_encoder_config.n_head)
+            torch.nn.Linear(self.mid_dim, 2 * self.prompt_encoder_config.num_hidden_layers *
+                            self.prompt_encoder_config.hidden_size)
         )
 
         self.prompt_tokens = torch.arange(1, self.pre_seq_len + 1).long()
         self.transform = torch.nn.Linear(config.hidden_size, 1)
         self.prompt_embed = torch.nn.Embedding(self.pre_seq_len, config.hidden_size) # size = (?,?)
 
-    def get_context(self, input_ids, position_ids, attention_mask):
+    def get_context(self, input_ids, position_ids, attention_mask, batch_size):  # cannot set query_ids as the truncated input_ids
         # get hypothesis statements as contexts
-        query_ids = input_ids[:, self.max_query_length]
+        query_ids = input_ids[:, :self.max_query_length].clone()  # -1 to exclude the [SEP] token
         if position_ids is not None:
-            position_ids = position_ids[:, self.max_query_length]
-        attention_mask = attention_mask[:, self.max_query_length]
+            position_ids = position_ids[:, :self.max_query_length].clone()
+        attention_mask = attention_mask[:, :self.max_query_length].clone()
 
+        sep_position = (input_ids == 102).nonzero(as_tuple=False)[::2, 1].clone()
+        for idx in range(batch_size):
+            query_ids[idx, sep_position[idx]:] = 0
+            attention_mask[idx, sep_position[idx]:] = 0
+        if torch.max(query_ids) > 30521:
+            torch.save(input_ids, 'input_ids.pt')
+            torch.save(query_ids, 'query_ids.pt')
+            torch.save(sep_position, 'sep_position.pt')
         # get context embeddings and convert them to past key values
         self.context_encoder.eval()
         with torch.no_grad():
             context = self.context_encoder(
                 input_ids=query_ids,
                 position_ids=position_ids,
-                attention_mask=attention_mask,
+                attention_mask=attention_mask
             ).last_hidden_state  # (bs, seq_len, hidden_size)
         past_key_values = self.control_trans(context)
 
         # adjust past key values dimensions to fit into the prompt encoder
         bsz, seqlen, _ = past_key_values.shape
         config = self.prompt_encoder_config
-        past_key_values = past_key_values.view(bsz, seqlen, config.n_layer * 2, config.n_head,
-                                               config.n_embd)
+        past_key_values = past_key_values.view(bsz, seqlen, self.prompt_encoder_config.num_hidden_layers * 2,
+                                               self.prompt_encoder_config.num_attention_heads,
+                                               self.prompt_encoder_config.hidden_size // self.prompt_encoder_config.num_attention_heads)
         past_key_values = past_key_values.permute([2, 0, 3, 1, 4]).split(2)
-        # past_key_values is of shape (12, 2, 8, 12, 256, 768) -> (n_layers, 2, bsz, n_head, seqlen, hidden_size)
+        # past_key_values is of shape (2, 2, 8, 12, 256, 64) -> (n_layers, 2, bsz, n_head, seqlen, embed_per_head)
 
         return past_key_values
 
     def get_prompt(self, past_key_values, batch_size):
         prompt_tokens = self.prompt_tokens.unsqueeze(0).expand(batch_size, -1).to(self.bert.device)
-        prompts = self.prompt_encoder(input_ids=prompt_tokens, past_key_values=past_key_values)
+        prompts = self.prompt_encoder(input_ids=prompt_tokens, past_key_values=past_key_values).last_hidden_state
         # output size = (bsz, seqlen, hidden_size)
         prompts = self.transform(prompts)  # size has to become (bsz, seqlen, 1)
         prompt_min = torch.min(prompts)
         prompt_max = torch.max(prompts)
-        prompts = (prompts+prompt_min) / (prompt_max-prompt_min) * self.pre_seq_len
+        prompts = (prompts-prompt_min) / (prompt_max-prompt_min) * (self.pre_seq_len-1)
         # have to be in the range 0~pre_seq_len
-        prompts = prompts.to(torch.long)
+        prompts = prompts.to(torch.long).squeeze(dim=2)
         prompts = self.prompt_embed(prompts)
         return prompts
 
@@ -135,14 +143,14 @@ class BertForIdentificationClassification(BertPreTrainedModel):
         # ------------------------------------------
 
         batch_size = input_ids.shape[0]
-        input_ids = torch.tensor(input_ids).to(self.bert.device).long()
+        # input_ids = torch.tensor(input_ids).clone().detach().to(self.bert.device).long()
         raw_embedding = self.embeddings(
             input_ids=input_ids,
             position_ids=position_ids,
             token_type_ids=token_type_ids,
         )
 
-        context_as_past_key_values = self.get_context(input_ids, position_ids, attention_mask)
+        context_as_past_key_values = self.get_context(input_ids, position_ids, attention_mask, batch_size)
         prompts = self.get_prompt(context_as_past_key_values, batch_size)
         inputs_embeds = torch.cat((prompts, raw_embedding), dim=1)
         prompt_attention_mask = torch.ones(batch_size, self.pre_seq_len).to(self.bert.device)
