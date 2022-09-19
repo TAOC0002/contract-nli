@@ -89,7 +89,6 @@ class BertForIdentificationClassification(BertPreTrainedModel):
         inputs_embeds = torch.cat((prompts, raw_embedding), dim=1)
         prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len).to(self.bert.device)
         attention_mask = torch.cat((prefix_attention_mask, attention_mask), dim=1)
-        print(prompts.shape, inputs_embeds.shape, prefix_attention_mask.shape, attention_mask.shape, head_mask)
         outputs = self.bert(
             # input_ids,
             attention_mask=attention_mask,
