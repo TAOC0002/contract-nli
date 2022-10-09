@@ -75,7 +75,7 @@ fp16: false
 fp16_opt_level: "O1"
 
 # Make it true if you have a gpu but you don't want to use it
-no_cuda: true
+no_cuda: false
 
 # Overwrite the cached training and evaluation sets
 overwrite_cache: false
