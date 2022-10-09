@@ -92,6 +92,7 @@ class Trainer(object):
         )
 
         self.model = model
+        self.model_type = model.module.model_type if hasattr(model, "module") else model.model_type
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.max_steps = max_steps
@@ -254,7 +255,7 @@ class Trainer(object):
         else:
             self.model.eval()
 
-        inputs = self.converter(batch, self.model, self.device)
+        inputs = self.converter(batch, self.model, self.model_type, self.device)
         outputs = self.model(**inputs)
 
         loss, loss_cls = outputs.loss, outputs.loss_cls,
