@@ -20,6 +20,10 @@ from transformers.utils import logging
 from contract_nli.dataset.loader import NLILabel
 from contract_nli.model.identification_classification.model_output import \
     IdentificationClassificationModelOutput
+<<<<<<< HEAD
+=======
+# from contract_nli.model.identification_classification.prompt import PromptEncoder
+>>>>>>> e5a7fc4207e48631cf46cebb5dd72391dc20a3a4
 
 logger = logging.get_logger(__name__)
 
