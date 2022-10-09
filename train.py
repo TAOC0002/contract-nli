@@ -61,11 +61,14 @@ def main(conf, output_dir, template, local_rank, shared_filesystem):
         n_gpu = 0 if conf['no_cuda'] else torch.cuda.device_count()
         # print(conf['no_cuda'], torch.cuda.device_count(), torch.cuda.is_available(), local_rank)
     else:  # Initializes the distributed backend which will take care of sychronizing nodes/GPUs
-        torch.cuda.set_device(local_rank)
-        device = torch.device("cuda", local_rank)
+        torch.cuda.set_device('cuda:0')
+        device = 'cuda:0'
         torch.distributed.init_process_group(backend="nccl")
         n_gpu = 2
+<<<<<<< HEAD
         # print(conf['no_cuda'], torch.cuda.device_count(), torch.cuda.is_available(), local_rank) 
+=======
+>>>>>>> af70170e0b868134412f8f2fe9ddc960873b53a1
 
     # if this is a main process in a node
     local_main = is_main_process(local_rank)
