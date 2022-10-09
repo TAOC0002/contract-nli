@@ -75,12 +75,12 @@ fp16: false
 fp16_opt_level: "O1"
 
 # Make it true if you have a gpu but you don't want to use it
-no_cuda: false
+no_cuda: true
 
 # Overwrite the cached training and evaluation sets
 overwrite_cache: false
 
-weight_class_probs_by_span_probs: true
+weight_class_probs_by_span_probs: false
 
 # class loss is multiplied by this value
 class_loss_weight: 0.2

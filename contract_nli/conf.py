@@ -25,7 +25,7 @@ def load_conf(path: object) -> object:
     """
     with open(path) as fin:
         conf_txt = fin.read()
-    conf = yaml.load(conf_txt)
+    conf = yaml.load(conf_txt, Loader=yaml.FullLoader)
     assert 'raw_yaml' not in conf
     conf['raw_yaml'] = conf_txt
 

@@ -19,7 +19,7 @@ from functools import partial
 from multiprocessing import Pool, cpu_count
 from typing import List, Dict
 from collections import defaultdict
-
+import regex
 import numpy as np
 import torch
 from torch.utils.data import TensorDataset
@@ -107,7 +107,6 @@ class IdentificationClassificationFeatures:
             assert class_label in [NLILabel.ENTAILMENT.value, NLILabel.CONTRADICTION.value]
         self.valid_span_missing_in_context = valid_span_missing_in_context
         self.data_id = data_id
-
         self.encoding = encoding
 
 
@@ -133,6 +132,21 @@ def _new_check_is_max_context(doc_spans, cur_span_index, position):
             best_span_index = span_index
 
     return cur_span_index == best_span_index
+
+def regex_search(example_tokens, expr, sections, pre_seq_len, orig_to_tok_index, article: bool = False):
+    section_search = lambda x:regex.search(expr, x)
+    for i in range(len(example_tokens)):
+        if article:
+            condition = section_search(example_tokens[i]) and example_tokens[i-1] == 'Article' and example_tokens[i-2] == '\n'
+        else:
+            condition = section_search(example_tokens[i]) and example_tokens[i-1] == '\n'
+        if condition:
+            end_idx = len(example_tokens) - 1
+            for j in range(i,len(example_tokens)):
+                if example_tokens[j] == '\n':
+                    end_idx = j
+                    break
+            sections.append((orig_to_tok_index[i], example_tokens[i:min(end_idx, i+pre_seq_len)]))
 
 
 def tokenize(tokenizer, tokens: List[str], splits: List[int]):
@@ -175,12 +189,30 @@ def convert_example_to_features(
         labels_available: bool,
         symbol_based_hypothesis: bool,
         pre_seq_len: int,
-        template: int
-        ) -> List[IdentificationClassificationFeatures]:
+        verbose: bool = False,
+) -> List[IdentificationClassificationFeatures]:
     features = []
 
     all_doc_tokens, orig_to_tok_index, tok_to_orig_index, span_to_orig_index = tokenize(
         tokenizer, example.tokens, example.splits)
+
+    sections = []
+    example_tokens = example.tokens
+
+    expr = '^[IVX]{1,4}\.$'
+    regex_search(example_tokens, expr, sections, pre_seq_len, orig_to_tok_index)
+
+    if len(sections) == 0:
+        expr = '^§$'
+        regex_search(example_tokens, expr, sections, pre_seq_len, orig_to_tok_index)
+
+    if len(sections) == 0:
+        expr = '^\d{1,2}$'
+        regex_search(example_tokens, expr, sections, pre_seq_len, orig_to_tok_index, article=True)
+
+    if len(sections) == 0:
+        expr = '^\d{1,2}\.?$'
+        regex_search(example_tokens, expr, sections, pre_seq_len, orig_to_tok_index)
 
     if symbol_based_hypothesis:
         truncated_query = [example.hypothesis_symbol]
@@ -197,12 +229,13 @@ def convert_example_to_features(
     )
     sequence_pair_added_tokens = tokenizer.model_max_length - tokenizer.max_len_sentences_pair
     query_with_special_tokens_length = len(truncated_query) + sequence_added_tokens
-    max_context_length = max_seq_length - pre_seq_len - sequence_pair_added_tokens - len(truncated_query)
+    max_context_length = max_seq_length - sequence_pair_added_tokens - len(truncated_query)
 
     spans = []
     start = 0
     covered_splits = set()
     all_splits = set(span_to_orig_index.keys())
+    section_id = 0
     while len(all_splits - covered_splits) > 0:
         upcoming_splits = [i for i in span_to_orig_index.keys()
                            if i >= start and i not in covered_splits]
@@ -228,7 +261,47 @@ def convert_example_to_features(
                     last_span_idx = i
             assert last_span_idx is not None
 
-        split_tokens = all_doc_tokens[start:min(start + max_context_length, len(all_doc_tokens))]
+        if start == 0:  # first portion
+            split_tokens = all_doc_tokens[start:min(start + max_context_length, len(all_doc_tokens))]
+            paragraph_len = len(split_tokens)
+            max_context_length -= pre_seq_len
+            if len(sections) == 0:
+                has_section = False
+            elif sections[0][0] <= start + max_context_length:
+                has_section = True
+            else:
+                has_section = False
+        else:
+            # Contextualize
+            prev = all_doc_tokens[start - 30:start]
+            split_tokens = all_doc_tokens[start:min(start + max_context_length, len(all_doc_tokens))]
+            paragraph_len = len(split_tokens)
+            if len(sections) == 0:
+                split_tokens = prev + split_tokens
+                has_section = False
+            elif section_id == len(sections):
+                split_tokens = sections[section_id - 1][1] + split_tokens
+                has_section = False
+            elif sections[section_id][0] <= start + max_context_length:
+                while section_id < len(sections) and sections[section_id][0] <= start + max_context_length:
+                    section_id += 1
+                split_tokens = prev + split_tokens
+                has_section = True
+            else:
+                if section_id == 0:
+                    split_tokens = prev + split_tokens
+                else:
+                    split_tokens = sections[section_id - 1][1] + split_tokens
+                has_section = False
+        if verbose:
+            print('start:', start, ', end:', start + max_context_length)
+            print('section_id:', section_id)
+            print('split_tokens:', split_tokens[:30])
+            print('section_ids:', [sections[idx][0] for idx in range(len(sections))])
+            print('no. of sections', len(sections))
+            print('has_section:', has_section)
+            print('seq length before padding:', len(split_tokens + truncated_query) + sequence_pair_added_tokens)
+            print('------------------')
 
         # Define the side we want to truncate / pad and the text/pair sorting
         if tokenizer.padding_side == "right":
@@ -243,28 +316,28 @@ def convert_example_to_features(
             pairs,
             truncation=False,
             padding=padding_strategy,
-            max_length=max_seq_length - pre_seq_len,
+            max_length=max_seq_length,
             return_overflowing_tokens=False,
             return_token_type_ids=True
         )
-        assert len(encoded_dict['input_ids']) <= max_seq_length - pre_seq_len
+        assert len(encoded_dict['input_ids']) <= max_seq_length
 
-        paragraph_len = len(split_tokens)
         if tokenizer.pad_token_id in encoded_dict["input_ids"]:
             if tokenizer.padding_side == "right":
                 non_padded_ids = encoded_dict["input_ids"][: encoded_dict["input_ids"].index(tokenizer.pad_token_id)]
             else:
                 last_padding_id_position = (
-                    len(encoded_dict["input_ids"]) - 1 - encoded_dict["input_ids"][::-1].index(tokenizer.pad_token_id)
+                        len(encoded_dict["input_ids"]) - 1 - encoded_dict["input_ids"][::-1].index(
+                    tokenizer.pad_token_id)
                 )
-                non_padded_ids = encoded_dict["input_ids"][last_padding_id_position + 1 :]
+                non_padded_ids = encoded_dict["input_ids"][last_padding_id_position + 1:]
         else:
             non_padded_ids = encoded_dict["input_ids"]
 
         tokens = tokenizer.convert_ids_to_tokens(non_padded_ids)
-
         token_to_orig_map = {}
         span_to_orig_map = {}
+
         for i in range(paragraph_len):
             index = query_with_special_tokens_length + i if tokenizer.padding_side == "right" else i
             if tok_to_orig_index[start + i] != -1:
@@ -275,6 +348,7 @@ def convert_example_to_features(
                 span_to_orig_map[index] = span_to_orig_index[start + i]
 
         encoded_dict["paragraph_len"] = paragraph_len
+        encoded_dict["context_length"] = len(split_tokens) - paragraph_len
         encoded_dict["tokens"] = tokens
         encoded_dict["token_to_orig_map"] = token_to_orig_map
         encoded_dict["span_to_orig_map"] = span_to_orig_map
@@ -293,20 +367,21 @@ def convert_example_to_features(
     for doc_span_index in range(len(spans)):
         for j in range(spans[doc_span_index]["paragraph_len"]):
             is_max_context = _new_check_is_max_context(
-                spans, doc_span_index, spans[doc_span_index]['start'] + j)
+                spans, doc_span_index, spans[doc_span_index]['start'] + spans[doc_span_index]['context_length'] + j)
             index = (
                 j
                 if tokenizer.padding_side == "left"
-                else query_with_special_tokens_length + j
+                else query_with_special_tokens_length + spans[doc_span_index]['context_length'] + j
             )
             spans[doc_span_index]["token_is_max_context"][index] = is_max_context
 
     span_token_id = tokenizer.additional_special_tokens_ids[tokenizer.additional_special_tokens.index(SPAN_TOKEN)]
+
     for span in spans:
         # Identify the position of the CLS token
         cls_index = span["input_ids"].index(tokenizer.cls_token_id)
 
-        # p_mask: mask with 1 for token than cannot be in the answer (0 for token which can be in an answer)
+        # p_mask: mask with 1 for token which cannot be in the answer (0 for token which can be in an answer)
         p_mask = np.logical_not(
             np.isin(np.array(span["input_ids"]), [span_token_id, tokenizer.cls_token_id])
         ).astype(np.int32)
@@ -322,9 +397,10 @@ def convert_example_to_features(
                     any((s in annotated_spans for s in span_to_orig_index.get(i, [])))
                     for i in range(doc_start, doc_end)
                 ]).astype(int)
+
                 if not np.any(_span_labels):
                     valid_span_missing_in_context = True
-                tok_start = query_with_special_tokens_length
+                tok_start = query_with_special_tokens_length + span["context_length"]
                 tok_end = tok_start + span["paragraph_len"]
                 if tokenizer.padding_side == "right":
                     span_labels[tok_start:tok_end] = _span_labels
@@ -343,7 +419,8 @@ def convert_example_to_features(
                 span["token_type_ids"],
                 cls_index,
                 p_mask,
-                example_index=0,  # Can not set unique_id and example_index here. They will be set after multiple processing.
+                example_index=0,
+                # Can not set unique_id and example_index here. They will be set after multiple processing.
                 unique_id=0,
                 paragraph_len=span["paragraph_len"],
                 token_is_max_context=span["token_is_max_context"],
@@ -356,7 +433,8 @@ def convert_example_to_features(
                 data_id=example.data_id,
             )
         )
-    return features
+
+    return features  # , all_doc_tokens, orig_to_tok_index, tok_to_orig_index, example_tokens, sections
 
 def convert_example_to_features_init(tokenizer_for_convert: PreTrainedTokenizerBase):
     global tokenizer
@@ -370,11 +448,11 @@ def convert_examples_to_features(
     max_query_length,
     labels_available,
     pre_seq_len,
-    template,
     symbol_based_hypothesis: bool,
     padding_strategy="max_length",
     threads=None,
     tqdm_enabled=True,
+    template=None,
 ):
     """
     Converts a list of examples into a list of features that can be directly
@@ -394,6 +472,7 @@ def convert_examples_to_features(
         threads = cpu_count()
     else:
         threads = min(threads, cpu_count())
+    print("I am at line 475")
     with Pool(threads, initializer=convert_example_to_features_init, initargs=(tokenizer,)) as p:
         annotate_ = partial(
             convert_example_to_features,
@@ -404,7 +483,6 @@ def convert_examples_to_features(
             labels_available=labels_available,
             symbol_based_hypothesis=symbol_based_hypothesis,
             pre_seq_len=pre_seq_len,
-            template=template
         )
         features: List[List[IdentificationClassificationFeatures]] = list(
             tqdm(
@@ -447,7 +525,7 @@ def convert_examples_to_features(
         all_cls_index,
         all_p_mask,
         all_valid_span_missing_in_context,
-        all_feature_index
+        all_feature_index,
     ]
     if labels_available:
         all_class_label = torch.tensor(

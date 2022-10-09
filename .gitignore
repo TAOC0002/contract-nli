@@ -96,5 +96,5 @@ cache/
 output*/
 sftp/
 wandb/
-contract_nli/model/identification_classification/bert2.py
+contract_nli/model/identification_classification/prompt.py
 *.zip

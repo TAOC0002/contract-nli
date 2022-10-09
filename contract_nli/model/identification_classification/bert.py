@@ -20,6 +20,7 @@ from transformers.utils import logging
 from contract_nli.dataset.loader import NLILabel
 from contract_nli.model.identification_classification.model_output import \
     IdentificationClassificationModelOutput
+from contract_nli.model.identification_classification.prompt import PromptEncoder
 
 logger = logging.get_logger(__name__)
 
@@ -47,21 +48,13 @@ class BertForIdentificationClassification(BertPreTrainedModel):
 
         # ------------------------------------------
 
-        self.embeddings = self.bert.embeddings
-
-        for param in self.bert.parameters():
-            param.requires_grad = False
-
-        self.pre_seq_len = config.pre_seq_len
-        self.prefix_tokens = torch.arange(self.pre_seq_len).long()
-        self.prefix_encoder = torch.nn.Embedding(self.pre_seq_len, config.hidden_size)
+        # self.prompt_encoder = PromptEncoder(self.template, self.hidden_size, self.tokenizer, self.device)
+        # self.prompt_encoder = self.prompt_encoder.to(self.device)
+        # for param in self.bert.parameters():
+        #     param.requires_grad = False
+        # self.pre_seq_len = config.pre_seq_len
 
         # ------------------------------------------
-
-    def get_prompt(self, batch_size):
-        prefix_tokens = self.prefix_tokens.unsqueeze(0).expand(batch_size, -1).to(self.bert.device)
-        prompts = self.prefix_encoder(prefix_tokens)
-        return prompts
 
     def forward(
         self,
@@ -77,35 +70,46 @@ class BertForIdentificationClassification(BertPreTrainedModel):
         valid_span_missing_in_context=None,
     ) -> IdentificationClassificationModelOutput:
 
+        # batch_size = input_ids.shape[0]
+        # raw_embedding = self.embeddings(
+        #     input_ids=input_ids.to(self.bert.device).long(),
+        #     position_ids=position_ids,
+        #     token_type_ids=token_type_ids,
+        # )
+        # prompts = self.prompt_encoder(context)
+        # inputs_embeds = torch.cat((prompts, raw_embedding), dim=1)
+        # prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len).to(self.bert.device)
+        # attention_mask = torch.cat((prefix_attention_mask, attention_mask), dim=1)
+        # outputs = self.bert(
+        #     # input_ids,
+        #     attention_mask=attention_mask,
+        #     # token_type_ids=token_type_ids,
+        #     # position_ids=position_ids,
+        #     head_mask=head_mask,
+        #     inputs_embeds=inputs_embeds,
+        #     return_dict=True,
+        #     # past_key_values=past_key_values,
+        # )
+
         # ------------------------------------------
 
-        batch_size = input_ids.shape[0]
-        raw_embedding = self.embeddings(
-            input_ids=input_ids.to(self.bert.device).long(),
-            position_ids=position_ids,
-            token_type_ids=token_type_ids,
-        )
-        prompts = self.get_prompt(batch_size=batch_size)
-        inputs_embeds = torch.cat((prompts, raw_embedding), dim=1)
-        prefix_attention_mask = torch.ones(batch_size, self.pre_seq_len).to(self.bert.device)
-        attention_mask = torch.cat((prefix_attention_mask, attention_mask), dim=1)
         outputs = self.bert(
-            # input_ids,
+            input_ids,
             attention_mask=attention_mask,
-            # token_type_ids=token_type_ids,
-            # position_ids=position_ids,
+            token_type_ids=token_type_ids,
+            position_ids=position_ids,
             head_mask=head_mask,
             inputs_embeds=inputs_embeds,
             return_dict=True,
             # past_key_values=past_key_values,
         )
-
         sequence_output = outputs.last_hidden_state
 
-        sequence_output = sequence_output[:, self.pre_seq_len:, :].contiguous()
-        first_token_tensor = sequence_output[:, 0]
-        pooled_output = self.bert.pooler.dense(first_token_tensor)
-        pooled_output = self.bert.pooler.activation(pooled_output)
+        pooled_output = outputs.pooler_output
+        # sequence_output = sequence_output[:, self.pre_seq_len:, :].contiguous()
+        # first_token_tensor = sequence_output[:, 0]
+        # pooled_output = self.bert.pooler.dense(first_token_tensor)
+        # pooled_output = self.bert.pooler.activation(pooled_output)
 
         pooled_output = self.dropout(pooled_output)
         logits_cls = self.class_outputs(pooled_output)

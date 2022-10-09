@@ -83,7 +83,6 @@ def convert_example_to_features(
         padding_strategy,
         symbol_based_hypothesis: bool,
         pre_seq_len: int,
-        template: int
         ) -> ClassificationFeatures:
     all_doc_tokens, orig_to_tok_index, tok_to_orig_index, span_to_orig_index = tokenize(
        tokenizer, example.tokens, example.splits)

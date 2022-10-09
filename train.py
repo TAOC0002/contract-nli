@@ -37,7 +37,7 @@ from contract_nli.predictor import predict, predict_classification
 from contract_nli.trainer import Trainer, setup_optimizer
 from contract_nli.utils import set_seed, distributed_barrier
 import wandb
-wandb.login()
+# wandb.login()
 
 logger = logging.getLogger(__name__)
 
@@ -198,7 +198,7 @@ def main(conf, output_dir, template, local_rank, shared_filesystem):
             dataset_type=conf['task'],
             symbol_based_hypothesis=conf['symbol_based_hypothesis'],
             pre_seq_len=conf['pre_seq_len'],
-            template=template,
+            template=None,
             threads=None,
             local_rank=local_rank,
             overwrite_cache=conf['overwrite_cache'],
