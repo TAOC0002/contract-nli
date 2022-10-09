@@ -80,7 +80,7 @@ no_cuda: true
 # Overwrite the cached training and evaluation sets
 overwrite_cache: false
 
-weight_class_probs_by_span_probs: false
+weight_class_probs_by_span_probs: true
 
 # class loss is multiplied by this value
 class_loss_weight: 0.2
@@ -93,4 +93,4 @@ task: "identification_classification"
 symbol_based_hypothesis: false
 
 # ----------- P-tuning hyperparams ----------- #
-pre_seq_len: 100
+pre_seq_len: 30
