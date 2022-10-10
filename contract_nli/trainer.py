@@ -255,7 +255,7 @@ class Trainer(object):
         else:
             self.model.eval()
 
-        inputs = self.converter(batch, self.model, self.model_type, self.device)
+        inputs = self.converter(batch, self.model, self.device, model_type=self.model_type)
         outputs = self.model(**inputs)
 
         loss, loss_cls = outputs.loss, outputs.loss_cls,

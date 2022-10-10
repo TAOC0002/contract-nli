@@ -15,7 +15,7 @@
 import torch
 
 
-def identification_classification_converter(batch, model, model_type, device, no_labels=False) -> dict:
+def identification_classification_converter(batch, model, device, no_labels=False, model_type=None) -> dict:
     batch = tuple(t.to(device) for t in batch)
     inputs = {
         "input_ids": batch[0],
