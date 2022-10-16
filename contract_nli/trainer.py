@@ -140,11 +140,11 @@ class Trainer(object):
             self.amp = amp
 
         # multi-gpu training (should be after apex fp16 initialization)
-        if self.n_gpu > 1:
-            self.model = torch.nn.DataParallel(self.model)
+        # if self.n_gpu > 1:
+        #     self.model = torch.nn.DataParallel(self.model)
 
         # Distributed training (should be after apex fp16 initialization)
-        if self.local_rank != -1:
+        if self.local_rank != -1 or self.n_gpu > 1:
             self.model = torch.nn.parallel.DistributedDataParallel(
                 self.model, device_ids=[self.local_rank], output_device=self.local_rank,
                 find_unused_parameters=True
