@@ -71,13 +71,13 @@ python aggregate_results.py -n 3 -m macro_label_micro_doc.class.accuracy -o aggr
 
 ## ContractNLI License
 
-Our dataset is released under Apache 2.0.
+ContractNLI is released under Apache 2.0.
 Please refer attached "[LICENSE](./LICENSE)" for the exact terms.
 
 This implementation has partially been derived from Huggingface's implementation of SQuAD BERT.
 Please refer the commit log for the full changes.
 
-When you use Span NLI BERT in your work, please cite our paper:
+When you use Span NLI BERT in your work, please cite the paper:
 
 ```bibtex
 @inproceedings{koreeda-manning-2021-contractnli,
