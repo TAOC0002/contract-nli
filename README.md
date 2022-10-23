@@ -1,6 +1,6 @@
 # Span NLI BERT for ContractNLI
 
-Span NLI BERT is a baseline produced by stanford NLP for ContractNLI. Their github repi can be found here: https://github.com/stanfordnlp/contract-nli-bert
+Span NLI BERT is a baseline produced by stanford NLP for ContractNLI. Their github repo can be found here: https://github.com/stanfordnlp/contract-nli-bert
 This repo consists of three branches, as detailed below:
 1. main: with context-aware data preprocessing (adding section description to subsections)
 2. stanfordnlp: the Span NLI BERT baseline by stanfordnlp
