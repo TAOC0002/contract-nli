@@ -1,6 +1,10 @@
 # Span NLI BERT for ContractNLI
 
 Span NLI BERT is a baseline produced by stanford NLP for ContractNLI. Their github repi can be found here: https://github.com/stanfordnlp/contract-nli-bert
+This repo consists of three branches, as detailed below:
+1. main: with context-aware data preprocessing (adding section description to subsections)
+2. stanfordnlp: the Span NLI BERT baseline by stanfordnlp
+3. context-prompt: prompt tuning, and initializing prompts similar to the methods described in https://arxiv.org/abs/2111.02643
 
 ## Usage
 
@@ -35,6 +39,14 @@ You can run an experiment by feeding `train.py` an experiment configuration YAML
 
 ```bash
 python train.py ./data/conf_base.yml ./output
+```
+On single GPU:
+```bash
+CUDA_VISIBLE_DEVICES="0" python -m train.py ./data/conf_base.yml ./output
+```
+On multiple GPUs (might have multiprocessing issues):```bash
+```bash
+CUDA_VISIBLE_DEVICES="0,1" python -m torch.distributed.launch --nproc_per_node 2 train.py ./data/conf_base.yml ./output
 ```
 
 ## Reproducibility
