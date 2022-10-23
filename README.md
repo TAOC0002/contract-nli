@@ -1,12 +1,6 @@
 # Span NLI BERT for ContractNLI
 
-ContractNLI is a dataset for document-level natural language inference (NLI) on contracts whose goal is to automate/support a time-consuming procedure of contract review.
-In this task, a system is given a set of hypotheses (such as "Some obligations of Agreement may survive termination.") and a contract, and it is asked to classify whether each hypothesis is _entailed by_, _contradicting to_ or _not mentioned by_ (neutral to) the contract as well as identifying _evidence_ for the decision as spans in the contract.
-Please refer our paper in "Findings of EMNLP 2021" and [the dataset repository](https://stanfordnlp.github.io/contract-nli/) for the details of the task.
-
-This repository maintains Span NLI BERT, a strong baseline for ContractNLI.
-It (1) makes the problem of evidence identification easier by modeling the problem as multi-label classification over spans instead of trying to predict the start and end tokens, and (b) introduces more sophisticated context segmentation to deal with long documents.
-We showed in our paper that Span NLI BERT significantly outperforms the existing models.
+Span NLI BERT is a baseline produced by stanford NLP for ContractNLI. Their github repi can be found here: https://github.com/stanfordnlp/contract-nli-bert
 
 ## Usage
 
@@ -63,7 +57,7 @@ python gen_params.py data/param_tmpl.py 100 ./params
 python aggregate_results.py -n 3 -m macro_label_micro_doc.class.accuracy -o aggregated_metrics.txt ./results
 ```
 
-## License
+## ContractNLI License
 
 Our dataset is released under Apache 2.0.
 Please refer attached "[LICENSE](./LICENSE)" for the exact terms.
