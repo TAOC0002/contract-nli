@@ -44,7 +44,7 @@ On single GPU:
 ```bash
 CUDA_VISIBLE_DEVICES="0" python -m train.py ./data/conf_base.yml ./output
 ```
-On multiple GPUs (might have multiprocessing issues):```bash
+On multiple GPUs (might have multiprocessing issues):
 ```bash
 CUDA_VISIBLE_DEVICES="0,1" python -m torch.distributed.launch --nproc_per_node 2 train.py ./data/conf_base.yml ./output
 ```
