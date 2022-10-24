@@ -42,7 +42,7 @@ python train.py ./data/conf_base.yml ./output
 ```
 On single GPU:
 ```bash
-CUDA_VISIBLE_DEVICES="0" python -m train.py ./data/conf_base.yml ./output
+CUDA_VISIBLE_DEVICES="0" python train.py ./data/conf_base.yml ./output
 ```
 On multiple GPUs (might have multiprocessing issues):
 ```bash
